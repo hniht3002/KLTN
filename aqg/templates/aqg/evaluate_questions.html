@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluate Questions - AQG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto p-6">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Question Evaluation</h1>
+            <div class="flex space-x-2 border-b-2 border-blue-500">
+                <a href="/" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-t-lg transition-colors">Upload Document</a>
+                <a href="/generate-questions/" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-t-lg transition-colors">Generate Questions</a>
+                <a href="/evaluate/" class="px-4 py-2 bg-blue-500 text-white rounded-t-lg">Evaluate Questions</a>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div id="error-alert" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                Error evaluating questions. Please try again.
+            </div>
+
+            <div class="flex space-x-4">
+                <button id="evaluate-btn"
+                        class="flex-1 bg-blue-500 text-white py-3 px-4 rounded-md hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed text-lg font-medium">
+                    Evaluate
+                </button>
+            </div>
+        </div>
+
+        <div id="results-container" class="hidden bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Evaluation Results</h2>
+            
+            <!-- Overall Score Card -->
+            <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-blue-600" id="average-score">0%</div>
+                        <div class="font-medium text-gray-800">Average BERT Score</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-green-600" id="total-questions">0</div>
+                        <div class="font-medium text-gray-800">Questions Evaluated</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Results -->
+            <div class="space-y-4">
+                <h3 class="text-xl font-semibold text-gray-800 mb-3">Detailed Question Analysis</h3>
+                <div id="question-details" class="space-y-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing overlay -->
+    <div id="processing-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">Evaluating Questions...</h3>
+            <p class="text-gray-600">Please wait while we analyze the questions.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const evaluateBtn = document.getElementById('evaluate-btn');
+            const errorAlert = document.getElementById('error-alert');
+            const resultsContainer = document.getElementById('results-container');
+            const questionDetails = document.getElementById('question-details');
+            const processingOverlay = document.getElementById('processing-overlay');
+            const averageScore = document.getElementById('average-score');
+            const totalQuestions = document.getElementById('total-questions');
+            const generateResponseBtn = document.getElementById('generate-response-btn');
+            
+            // Ensure overlay is hidden on page load
+            processingOverlay.classList.add('hidden');
+            
+            evaluateBtn.addEventListener('click', async function() {
+                // Hide any existing alerts and results
+                errorAlert.classList.add('hidden');
+                resultsContainer.classList.add('hidden');
+                
+                // Disable button
+                evaluateBtn.disabled = true;
+                evaluateBtn.textContent = 'Evaluating...';
+                
+                // Show processing overlay
+                processingOverlay.classList.remove('hidden');
+                
+                try {
+                    const response = await fetch('/api/evaluate/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ type: 'generator' })
+                    });
+                    
+                    // Hide processing overlay
+                    processingOverlay.classList.add('hidden');
+                    
+                    // Re-enable button
+                    evaluateBtn.disabled = false;
+                    evaluateBtn.textContent = 'Evaluate Generated Questions';
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Update overall scores
+                        const avgScore = (data.average_f1 * 100).toFixed(2);
+                        averageScore.textContent = `${avgScore}%`;
+                        totalQuestions.textContent = data.max_f1_scores.length;
+                        
+                        // Display detailed results
+                        questionDetails.innerHTML = '';
+                        
+                        data.max_f1_scores.forEach((item, index) => {
+                            const scorePercentage = (item.max_f1 * 100).toFixed(2);
+                            const scoreColor = getScoreColor(item.max_f1);
+                            
+                            const questionCard = document.createElement('div');
+                            questionCard.className = 'bg-white rounded-lg shadow-sm p-4 border border-gray-200';
+                            
+                            questionCard.innerHTML = `
+                                <div class="flex justify-between items-center mb-3">
+                                    <h4 class="font-semibold text-gray-800">Question Pair ${index + 1}</h4>
+                                    <div class="text-lg font-bold ${scoreColor}">${scorePercentage}%</div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div class="bg-blue-50 p-3 rounded-md">
+                                        <div class="font-medium text-blue-800 mb-1">Generated Question:</div>
+                                        <div class="text-blue-900">${item.gen_q}</div>
+                                    </div>
+                                    <div class="bg-green-50 p-3 rounded-md">
+                                        <div class="font-medium text-green-800 mb-1">Reference Question:</div>
+                                        <div class="text-green-900">${item.ref_q}</div>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            questionDetails.appendChild(questionCard);
+                        });
+                        
+                        // Show results
+                        resultsContainer.classList.remove('hidden');
+                        resultsContainer.scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to evaluate questions');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    errorAlert.textContent = error.message || 'Error evaluating questions. Please try again.';
+                    errorAlert.classList.remove('hidden');
+                }
+            });
+            
+            // Helper function to get color classes based on score
+            function getScoreColor(score) {
+                if (score >= 0.8) return 'text-green-600';
+                if (score >= 0.6) return 'text-blue-600';
+                if (score >= 0.4) return 'text-yellow-600';
+                return 'text-red-600';
+            }
+        });
+    </script>
+</body>
+</html> 

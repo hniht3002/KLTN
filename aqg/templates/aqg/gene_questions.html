@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatic Question Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto p-6">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Automatic Question Generator</h1>
+            <div class="flex space-x-2 border-b-2 border-blue-500">
+                <a href="/" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-t-lg transition-colors">Upload and Generate</a>
+                <a href="/generate-questions/" class="px-4 py-2 bg-blue-500 text-white rounded-t-lg">Generate Questions</a>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div id="error-alert" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                Error generating questions. Please try again.
+            </div>
+            
+            <form id="generate-form" class="space-y-4">
+                <div>
+                    <label for="topic" class="block text-sm font-medium text-gray-700 mb-1">Question Topic:</label>
+                    <input type="text" id="topic" name="topic" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="Enter topic for questions">
+                </div>
+                
+                <div>
+                    <label for="num-questions" class="block text-sm font-medium text-gray-700 mb-1">Number of Questions:</label>
+                    <input type="number" id="num-questions" name="num_questions" min="1" max="10" value="5"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <button type="submit" id="submit-btn"
+                        class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    Generate Questions
+                </button>
+            </form>
+        </div>
+        
+        <div id="results-container" class="hidden bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Generated Questions</h2>
+            <div id="questions-list" class="space-y-4"></div>
+        </div>
+    </div>
+    
+    <!-- Processing overlay -->
+    <div id="processing-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">Generating Questions...</h3>
+            <p class="text-gray-600">Please wait while we analyze the document and generate questions.</p>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('generate-form');
+            const topicInput = document.getElementById('topic');
+            const submitBtn = document.getElementById('submit-btn');
+            const errorAlert = document.getElementById('error-alert');
+            const resultsContainer = document.getElementById('results-container');
+            const questionsList = document.getElementById('questions-list');
+            const processingOverlay = document.getElementById('processing-overlay');
+            
+            // Ensure overlay is hidden on page load
+            processingOverlay.classList.add('hidden');
+            
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Hide any existing alerts and results
+                errorAlert.classList.add('hidden');
+                resultsContainer.classList.add('hidden');
+                
+                // Disable button
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Processing...';
+                
+                // Show processing overlay
+                processingOverlay.classList.remove('hidden');
+                
+                // Get form data
+                const requestData = {
+                    topic: topicInput.value,
+                    num_questions: document.getElementById('num-questions').value
+                };
+                
+                try {
+                    const response = await fetch('/api/generate-questions/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestData)
+                    });
+                    
+                    // Hide processing overlay
+                    processingOverlay.classList.add('hidden');
+                    
+                    // Re-enable button
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Generate Questions';
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('Response data:', data);
+                        
+                        // Display questions
+                        questionsList.innerHTML = '';
+                        
+                        if (!data.questions || data.questions.length === 0) {
+                            questionsList.innerHTML = '<p class="text-gray-600">No questions were generated. Try a different topic.</p>';
+                        } else {
+                            // Show the topic
+                            const topicTitle = document.createElement('h3');
+                            topicTitle.className = 'text-xl font-semibold text-gray-800 mb-4';
+                            topicTitle.textContent = `Topic: ${data.topic}`;
+                            questionsList.appendChild(topicTitle);
+                            
+                            // Display each question
+                            data.questions.forEach((question, index) => {
+                                const questionCard = document.createElement('div');
+                                questionCard.className = 'bg-white rounded-lg shadow-sm p-4 border border-gray-200';
+                                
+                                const questionText = document.createElement('div');
+                                questionText.className = 'font-semibold text-gray-800 mb-2';
+                                questionText.textContent = `Q${index + 1}: ${question.trim()}`;
+                                
+                                questionCard.appendChild(questionText);
+                                questionsList.appendChild(questionCard);
+                            });
+                        }
+                        
+                        // Show results
+                        resultsContainer.classList.remove('hidden');
+                        
+                        // Scroll to results
+                        resultsContainer.scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                        const errorData = await response.json();
+                        throw new Error('Failed to generate questions! Document not found or Internal Server Error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    
+                    // Show error message
+                    errorAlert.textContent = error.message || 'Error generating questions. Please try again.';
+                    errorAlert.classList.remove('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
