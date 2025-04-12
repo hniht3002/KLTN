@@ -39,9 +39,9 @@ The server will start at: `http://127.0.0.1:8000/`
 - **Description:** Homepage
 
 ### 2. `/generate-questions`
-- **Method:** POST  
+- **Method:** GET  
 - **Description:** Form to generate question 
 
 ### 3. `/evaluate`
-- **Method:** POST  
+- **Method:** GET  
 - **Description:** Evaluates the quality of the system
