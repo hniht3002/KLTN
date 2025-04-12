@@ -42,8 +42,6 @@ The server will start at: `http://127.0.0.1:8000/`
 - **Method:** POST  
 - **Description:** Form to generate question 
 
-  ```
-
 ### 3. `/evaluate`
 - **Method:** POST  
 - **Description:** Evaluates the quality of the system
